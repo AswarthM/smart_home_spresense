@@ -1,5 +1,5 @@
 # Smart Home Spresense
-Code for Sony Spresense.
+Code for Sony Spresense __
 Recieves nearby MAC addresses from Node-MCU over serial.
 Communicates with ESP-32 which is used to provide WiFi connectivity to Spresense.
 Takes inputs from TTP223 capacitive touch sensors to control relays which can also be controlled from the app via WiFi from anywhere as it uses Google Firebase Realtime-Database.
