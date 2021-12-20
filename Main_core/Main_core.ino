@@ -1,9 +1,13 @@
 /*TODO
    implement touch switches
    implement door state done
+   added servo instead of solenoid
 */
 
 #include <MP.h>
+#include <Servo.h>
+
+static Servo myServo;
 
 #define MSGLEN      64
 #define MY_MSGID    10
@@ -27,8 +31,12 @@ int touch[4] = {7, 6, 5, 4};
 int swState[4];
 int touchState[4];
 int lockState; //lock state
-int pir1;
+int pir1 = 0;
 int pir2;
+int pirSwState;
+
+unsigned long time1 = 0;
+
 int mq2;
 int ind1; // locations
 int ind2;
@@ -41,6 +49,8 @@ void setup()
   int ret2 = 0;
   int subid1 = 1;
   int subid2 = 2;
+
+  myServo.attach(PIN_D09);
 
   Serial.begin(9600);
   Serial2.begin(9600);
@@ -72,6 +82,7 @@ void setup()
 void loop()
 {
   //readTouch();
+  readPir1();
 
   int      ret1;
   int      subid1 = 1;
@@ -84,11 +95,11 @@ void loop()
     message = (String)packet->message;
     //Serial.print(message);
     message += ",";
-    message += readPir1();// add 2pir and mq02 sensor values
+    message += "0";// add 2pir and mq02 sensor values
     message += ",";
-    message += readPir2();
+    message += "0";
     message += ",";
-    message += readMq2();
+    message += readMq2(); //add mq2 values
     message += ",";
     message += readDoor();
     message += "*";
@@ -165,33 +176,33 @@ void updateSw() {
   }
 }
 void updateLock() {
-  digitalWrite(lockPin, lockState);
+  //digitalWrite(lockPin, lockState);
+  if(lockState){
+    myServo.write(90);
+  }
+  else{
+    myServo.write(0);
+  }
 }
 
-String readPir1() {
-  if (analogRead(A0) >= 500) {
-    return "1";
+void readPir1() {
+    Serial.println(analogRead(A0));
+  if (pir1) {
+    if ((unsigned long)(millis() - time1) >= 1000 * 5) { //delay 5 seconds
+      digitalWrite(sw[3], !swState[3]);
+      pir1 = 0;
+    }
   }
-  else {
-    return "0";
-  }
-}
-String readPir2() {
-  if (analogRead(A1) >= 500) {
-    return "1";
-  }
-  else {
-    return "0";
-  }
-}
-String readMq2() {
-  if (analogRead(A2) >= 500) {
-    return "1";
-  }
-  else {
-    return "0";
+  else{
+    if (analogRead(A0) >= 500) {
+      pir1 = 1;
+      pirSwState = swState[3];
+      digitalWrite(sw[3], LOW);
+      time1 = millis();
+    }
   }
 }
+
 String readDoor() {
   if (digitalRead(doorPin) == HIGH) {
     return "1";
@@ -201,6 +212,14 @@ String readDoor() {
   }
 }
 
+String readMq2() {
+  if (analogRead(A2) >= 500) {
+    return "1";
+  }
+  else {
+    return "0";
+  }
+}
 void readTouch() {
   for (int i = 0; i < 4; i++) {
     swState[i] = digitalRead(touch[i]);
