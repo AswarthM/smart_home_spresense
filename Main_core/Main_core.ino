@@ -5,9 +5,9 @@
 */
 
 #include <MP.h>
-#include <Servo.h>
+//#include <Servo.h>
 
-static Servo myServo;
+//static Servo myServo;
 
 #define MSGLEN      64
 #define MY_MSGID    10
@@ -34,6 +34,8 @@ int lockState; //lock state
 int pir1 = 0;
 int pir2;
 int pirSwState;
+int present = 0;
+int present2 = 0;
 
 unsigned long time1 = 0;
 
@@ -50,7 +52,7 @@ void setup()
   int subid1 = 1;
   int subid2 = 2;
 
-  myServo.attach(PIN_D09);
+//  myServo.attach(PIN_D09);
 
   Serial.begin(9600);
   Serial2.begin(9600);
@@ -68,14 +70,23 @@ void setup()
     printf("MP.begin(%d) error = %d\n", subid2, ret2);
   }
   MP.RecvTimeout(MP_RECV_POLLING);
+  
   for (int i = 0; i < 4; i++) {
     pinMode(sw[i], OUTPUT);
     digitalWrite(sw[i], HIGH);
   }
+  
   pinMode(doorPin, INPUT);
+  pinMode(lockPin, OUTPUT);
+  
   for (int i = 0; i < 4; i++) {
     pinMode(touch[i], INPUT);
   }
+
+
+  digitalWrite(lockPin, HIGH);
+  delay(1000);
+  digitalWrite(lockPin, LOW);
 
 }
 
@@ -93,9 +104,11 @@ void loop()
   ret1 = MP.Recv(&msgid, &packet, subid1);
   if (ret1 > 0) {
     message = (String)packet->message;
+    char tempPresent = message.charAt(0);
+    present = (int)tempPresent;////////////////////////////////////////
     //Serial.print(message);
     message += ",";
-    message += "0";// add 2pir and mq02 sensor values
+    message += "0";// add pir and mq02 sensor values
     message += ",";
     message += "0";
     message += ",";
@@ -105,6 +118,7 @@ void loop()
     message += "*";
     packet->status = 0;
     Serial.println("From Main Core Recieved message from Sub Core1");
+    updatePresence();
     //    //prevMessage = message;
     //    //while(!Serial2.available()); //wait till serial2 is available
     //    delay(1000);
@@ -170,30 +184,43 @@ void loop()
 
 }
 
+void updatePresence() { //toggle device2 if known device's visibility changes
+  //Serial.println(present);/////////////////////////////////////
+  if (present != present2) {
+    swState[2] = !swState[2];
+    digitalWrite(sw[2], !swState[2]);
+    //Serial.println("deviceeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+  }
+  present2 = present;
+}
+
 void updateSw() {
   for (int i = 0; i < 4; i++) {
     digitalWrite(sw[i], !swState[i]);
   }
 }
+
 void updateLock() {
   //digitalWrite(lockPin, lockState);
-  if(lockState){
-    myServo.write(90);
+  if (lockState == '1') {
+    digitalWrite(lockPin, HIGH);
+    delay(100);
   }
-  else{
-    myServo.write(0);
+  else {
+    digitalWrite(lockPin, LOW);
+    delay(100);
   }
 }
 
 void readPir1() {
-    Serial.println(analogRead(A0));
+  //Serial.println(analogRead(A0));
   if (pir1) {
     if ((unsigned long)(millis() - time1) >= 1000 * 5) { //delay 5 seconds
       digitalWrite(sw[3], !swState[3]);
       pir1 = 0;
     }
   }
-  else{
+  else {
     if (analogRead(A0) >= 500) {
       pir1 = 1;
       pirSwState = swState[3];
@@ -204,7 +231,9 @@ void readPir1() {
 }
 
 String readDoor() {
-  if (digitalRead(doorPin) == HIGH) {
+  bool dor = digitalRead(doorPin);
+  //Serial.println(dor);
+  if (dor == LOW) {
     return "1";
   }
   else {
@@ -212,13 +241,32 @@ String readDoor() {
   }
 }
 
+int mq2Count = 0;
+int mq2Detect = 0;
+
 String readMq2() {
-  if (analogRead(A2) >= 500) {
+  /////////////Serial.println("hiiiiiiiiiii");
+  if (mq2Detect) {
+    mq2Count = mq2Count - 1;
+    if(mq2Count == 0){
+      mq2Detect = 0;
+    }
+    ////////////////Serial.println("giiiiiiiiiiiiiiiiiiiiisssssss");
     return "1";
   }
   else {
-    return "0";
+    if (analogRead(A2) <= 500) {
+      mq2Detect = 1;
+      mq2Count = 10;
+      ////////////////////Serial.println("gassssssssssssssss");
+      return "1";
+    }
+    else {
+      ////////////////////Serial.println("byeeeeeeeeeeeeeeee");
+      return "0";
+    }
   }
+
 }
 void readTouch() {
   for (int i = 0; i < 4; i++) {
